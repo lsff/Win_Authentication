@@ -16,6 +16,7 @@
 #include <ntstatus.h>
 
 void getCredentials(const char * proxyIp, int proxyPort, char * proxType, QString &user, QString &password);
+bool findCredentials(const char * proxyIp, QString &user, QString &password);
 
 NTLMSSP_Protocal::NTLMSSP_Protocal(QObject* parent /*= 0*/) 
 {
@@ -66,17 +67,27 @@ void NTLMSSP_Protocal::SendHttpRequest()
 void NTLMSSP_Protocal::DealWithAuthRequired(QNetworkReply* reply, QAuthenticator* authenticator)
 {
 	QString qUser, qPwd;
+	findCredentials(QUrl(m_strUrl.c_str()).host().toStdString().c_str(), qUser, qPwd);
 	getCredentials(QUrl(m_strUrl.c_str()).host().toStdString().c_str(), 0, NULL, qUser, qPwd);
 	authenticator->setUser(qUser);
 	authenticator->setPassword(qPwd);
 }
 
+bool findCredentials(const char * proxyIp, QString &user, QString &password)
+{
+	USES_CONVERSION;
+	CREDENTIAL_TARGET_INFORMATION targetInfo = { 0 };
+	targetInfo.TargetName = A2W(proxyIp);
+	targetInfo.DnsServerName = A2W(proxyIp);
+	DWORD dwCount = 0;
+	PCREDENTIAL* pCredential = NULL;
+	bool bFind = CredReadDomainCredentials(&targetInfo, CRED_CACHE_TARGET_INFORMATION, &dwCount, &pCredential);
+	return bFind;
+}
+
 void getCredentials(const char * proxyIp, int proxyPort, char * proxType, QString &user, QString &password)
 {
 	//Log.info("Credentials", L"About to read credentials for [%hs] [%d] [%hs]",proxyIp,proxyPort,proxType);
-
-
-
 	HRESULT hr = S_OK;
 	DWORD   dwResult;
 	PVOID   pvInAuthBlob = NULL;

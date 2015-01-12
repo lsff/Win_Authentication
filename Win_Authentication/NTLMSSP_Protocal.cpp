@@ -17,6 +17,7 @@
 
 void getCredentials(const char * proxyIp, int proxyPort, char * proxType, QString &user, QString &password);
 bool findCredentials(const char * proxyIp, QString &user, QString &password);
+bool getNTLM_Authentication(const char * proxyIp);
 
 NTLMSSP_Protocal::NTLMSSP_Protocal(QObject* parent /*= 0*/) 
 {
@@ -67,15 +68,60 @@ void NTLMSSP_Protocal::SendHttpRequest()
 void NTLMSSP_Protocal::DealWithAuthRequired(QNetworkReply* reply, QAuthenticator* authenticator)
 {
 	QString qUser, qPwd;
+	getNTLM_Authentication(QUrl(m_strUrl.c_str()).host().toStdString().c_str());
 	findCredentials(QUrl(m_strUrl.c_str()).host().toStdString().c_str(), qUser, qPwd);
 	getCredentials(QUrl(m_strUrl.c_str()).host().toStdString().c_str(), 0, NULL, qUser, qPwd);
 	authenticator->setUser(qUser);
 	authenticator->setPassword(qPwd);
 }
 
+bool getNTLM_Authentication(const char * proxyIp)
+{
+	USES_CONVERSION;
+	ULONG uSecurityPackages = 0;
+	PSecPkgInfo pSecPkgInfo = 0;
+	SECURITY_STATUS sStatus = EnumerateSecurityPackages(&uSecurityPackages, &pSecPkgInfo);
+	if (pSecPkgInfo)
+		FreeContextBuffer(pSecPkgInfo);
+	CredHandle credHandle = {0};
+	TimeStamp timeStamp = {0};
+	sStatus = AcquireCredentialsHandleA(NULL, "NTLM", SECPKG_CRED_OUTBOUND, NULL, NULL, NULL, NULL, &credHandle, &timeStamp);
+	if (SEC_E_OK == sStatus)
+	{
+		TCHAR szTargetName[CREDUI_MAX_DOMAIN_TARGET_LENGTH] = {0};
+		swprintf_s(szTargetName, CREDUI_MAX_DOMAIN_TARGET_LENGTH, L"HTTP/%s", A2W(proxyIp));
+		CtxtHandle newCtxtHandle = {0};
+		SecBufferDesc inputSecBufferDesc = {0};
+		SecBufferDesc newSecBufferDesc = {0};
+		ULONG fContextAttr = ISC_RET_CALL_LEVEL | ISC_RET_INTERMEDIATE_RETURN | ISC_RET_USED_DCE_STYLE | ISC_RET_USED_SUPPLIED_CREDS;
+		sStatus = InitializeSecurityContext(
+			&credHandle, 
+			NULL, 
+			szTargetName, 
+			ISC_REQ_DELEGATE | ISC_REQ_ALLOCATE_MEMORY, 
+			0, 
+			SECURITY_NATIVE_DREP, 
+			NULL, 
+			0, 
+			&newCtxtHandle, 
+			&newSecBufferDesc, 
+			&fContextAttr, 
+			&timeStamp);
+		if (sStatus == SEC_I_CONTINUE_NEEDED)
+		{
+			bool bContinue = true;
+		}
+		if (newSecBufferDesc.pBuffers)
+			FreeContextBuffer(newSecBufferDesc.pBuffers);
+
+	}
+	return true;
+}
+
 bool findCredentials(const char * proxyIp, QString &user, QString &password)
 {
 	USES_CONVERSION;
+
 	CREDENTIAL_TARGET_INFORMATION targetInfo = {0};
 	targetInfo.TargetName = A2W(proxyIp);
 	targetInfo.DnsDomainName = A2W(proxyIp);
@@ -84,9 +130,7 @@ bool findCredentials(const char * proxyIp, QString &user, QString &password)
 	targetInfo.CredTypeCount = 1;
 	DWORD dwCount = 0;
 	PCREDENTIAL* pCredential = NULL;
-	//bool bFind = CredReadDomainCredentials(&targetInfo, 0, &dwCount, &pCredential);
-	PCREDENTIAL pReadCredential = NULL;
-	bool bFind = CredRead(A2W(proxyIp), CRED_TYPE_DOMAIN_PASSWORD, 0, &pReadCredential);
+	bool bFind = CredReadDomainCredentials(&targetInfo, CRED_CACHE_TARGET_INFORMATION, &dwCount, &pCredential);
 	if (pCredential)
 		CredFree(pCredential);
 	return true;

@@ -9,6 +9,7 @@ int main(int argc, char *argv[])
 {
 	QCoreApplication a(argc, argv);
 	NTLMSSP_Protocal ntlmsspProtocal;
-	ntlmsspProtocal.GetSharePointVersionFromURL("http://demo.infowisesolutions.com/");
+	//ntlmsspProtocal.GetSharePointVersionFromURL("http://demo.infowisesolutions.com/");
+	ntlmsspProtocal.GetSharePointVersionFromURL("http://spserver");
 	return a.exec();
 }

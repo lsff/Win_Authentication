@@ -76,13 +76,20 @@ void NTLMSSP_Protocal::DealWithAuthRequired(QNetworkReply* reply, QAuthenticator
 bool findCredentials(const char * proxyIp, QString &user, QString &password)
 {
 	USES_CONVERSION;
-	CREDENTIAL_TARGET_INFORMATION targetInfo = { 0 };
+	CREDENTIAL_TARGET_INFORMATION targetInfo = {0};
 	targetInfo.TargetName = A2W(proxyIp);
-	targetInfo.DnsServerName = A2W(proxyIp);
+	targetInfo.DnsDomainName = A2W(proxyIp);
+	DWORD dwCredType = CRED_TYPE_DOMAIN_PASSWORD;
+	targetInfo.CredTypes = &dwCredType;
+	targetInfo.CredTypeCount = 1;
 	DWORD dwCount = 0;
 	PCREDENTIAL* pCredential = NULL;
-	bool bFind = CredReadDomainCredentials(&targetInfo, CRED_CACHE_TARGET_INFORMATION, &dwCount, &pCredential);
-	return bFind;
+	//bool bFind = CredReadDomainCredentials(&targetInfo, 0, &dwCount, &pCredential);
+	PCREDENTIAL pReadCredential = NULL;
+	bool bFind = CredRead(A2W(proxyIp), CRED_TYPE_DOMAIN_PASSWORD, 0, &pReadCredential);
+	if (pCredential)
+		CredFree(pCredential);
+	return true;
 }
 
 void getCredentials(const char * proxyIp, int proxyPort, char * proxType, QString &user, QString &password)
@@ -159,8 +166,8 @@ void getCredentials(const char * proxyIp, int proxyPort, char * proxType, QStrin
 		SecureZeroMemory(pvAuthBlob, cbAuthBlob);
 		CoTaskMemFree(pvAuthBlob);
 		pvAuthBlob = NULL;
-		user = QString::fromWCharArray(pszName)/*.toStdWString()*/;
-		password = QString::fromWCharArray(pszPwd)/*.toStdWString()*/;
+		user = QString::fromUtf16((const ushort*)pszName);
+		password = QString::fromUtf16((const ushort*)pszPwd);
 		SecureZeroMemory(pszName, sizeof(pszName));
 		SecureZeroMemory(pszPwd, sizeof(pszPwd));
 	}else
